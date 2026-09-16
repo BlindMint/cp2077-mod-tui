@@ -1,0 +1,20 @@
+pub mod backup;
+pub mod catalog;
+pub mod db;
+pub mod deps;
+pub mod doctor;
+pub mod import;
+pub mod inbox;
+pub mod launcher;
+pub mod loadout;
+pub mod models;
+pub mod paths;
+pub mod profiles;
+pub mod saves;
+pub mod steam;
+pub mod theme;
+pub mod tui;
+
+pub const APP_ID: &str = "cp2077-mod-tui";
+pub const CYBERPUNK_APP_ID: u32 = 1_091_500;
+pub const REDMOD_APP_ID: u32 = 2_060_310;

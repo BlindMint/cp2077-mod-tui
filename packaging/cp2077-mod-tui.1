@@ -1,0 +1,60 @@
+.TH CP2077-MOD-TUI 1 "July 2026" "cp2077-mod-tui 0.1.0"
+.SH NAME
+cp2077-mod-tui \- isolated Cyberpunk 2077 mod manager and launcher
+.SH SYNOPSIS
+.B cp2077-mod-tui
+.RI [ COMMAND ]
+.SH DESCRIPTION
+Manages immutable mod releases and isolated loadout profiles without changing
+the Steam Cyberpunk 2077 game tree, Steam launch options, or Steam Proton prefix.
+With no command, opens the terminal user interface.
+.PP
+The TUI Imports page scans ./mods relative to the current working directory.
+It can also accept an arbitrary directory or archive path interactively.
+.SH COMMANDS
+.TP
+.B doctor [--json]
+Inspect Steam discovery, runtime dependencies, REDmod, and the vanilla tree.
+.TP
+.B import PATH [--name NAME] [--version VERSION] [--profile PROFILE]
+Safely import a local archive or directory.
+.TP
+.B profile list|create|show
+Manage isolated profiles.
+.TP
+.B mod list|enable|disable|disable-all|priority
+Inspect, toggle, and order installed mods.
+.TP
+.B framework list|fetch
+Inspect or download curated frameworks from official upstream releases.
+.TP
+.B conflicts PROFILE
+List exact path collisions in the effective loadout.
+.TP
+.B prepare PROFILE
+Create the dedicated UMU prefix and install Windows prerequisites.
+.TP
+.B launch PROFILE [--dry-run] [--force]
+Materialize and launch an isolated profile. Force acknowledges a changed Steam
+build ID; it does not bypass broken dependencies.
+.TP
+.B backup|restore
+Manage isolated saves and runtime-state backups.
+.TP
+.B theme list|set
+Manage four-color TUI theme presets.
+.SH FILES
+.TP
+.I $XDG_CONFIG_HOME/cp2077-mod-tui/config.toml
+Theme configuration.
+.TP
+.I $XDG_DATA_HOME/cp2077-mod-tui
+SQLite database, archives, releases, profiles, prefixes, and backups.
+.TP
+.I $XDG_RUNTIME_DIR/cp2077-mod-tui
+Transient FUSE mountpoints and runtime state.
+.SH SEE ALSO
+.BR steam (6),
+.BR umu (1),
+.BR fuse-overlayfs (1),
+.BR winetricks (1)

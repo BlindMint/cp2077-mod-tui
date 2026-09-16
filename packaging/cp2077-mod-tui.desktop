@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=CP2077 Mod TUI
+Comment=Manage isolated Cyberpunk 2077 mod profiles
+Exec=cp2077-mod-tui
+Terminal=true
+Categories=Game;Utility;
+Keywords=Cyberpunk;Steam;Mods;Proton;
+

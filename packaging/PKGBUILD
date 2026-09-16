@@ -1,0 +1,43 @@
+# Maintainer: cp2077-mod-tui contributors
+pkgname=cp2077-mod-tui
+pkgver=0.1.0
+pkgrel=1
+pkgdesc="Isolated profile-based Cyberpunk 2077 mod manager and TUI launcher"
+arch=('x86_64')
+url="https://github.com/OWNER/cp2077-mod-tui"
+license=('MIT' 'Apache-2.0')
+depends=('fuse-overlayfs' 'umu-launcher' 'winetricks' 'libarchive')
+optdepends=('steam: native Steam installation and library management'
+            'gamemode: optional game performance wrapper'
+            'mangohud: optional performance overlay'
+            'gamescope: optional nested compositor')
+makedepends=('cargo')
+source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz")
+sha256sums=('SKIP')
+
+prepare() {
+  cd "$pkgname-$pkgver"
+  cargo fetch --locked --target "$CARCH-unknown-linux-gnu"
+}
+
+build() {
+  cd "$pkgname-$pkgver"
+  cargo build --frozen --release
+}
+
+check() {
+  cd "$pkgname-$pkgver"
+  cargo test --frozen --all-targets
+}
+
+package() {
+  cd "$pkgname-$pkgver"
+  install -Dm755 "target/release/$pkgname" "$pkgdir/usr/bin/$pkgname"
+  install -Dm644 "packaging/$pkgname.desktop" \
+    "$pkgdir/usr/share/applications/$pkgname.desktop"
+  install -Dm644 "packaging/$pkgname.1" \
+    "$pkgdir/usr/share/man/man1/$pkgname.1"
+  install -Dm644 LICENSE-MIT "$pkgdir/usr/share/licenses/$pkgname/LICENSE-MIT"
+  install -Dm644 LICENSE-APACHE "$pkgdir/usr/share/licenses/$pkgname/LICENSE-APACHE"
+}
+
