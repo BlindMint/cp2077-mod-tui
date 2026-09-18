@@ -24,10 +24,28 @@ This is an initial working release. It includes:
 - Legacy and official REDmod layout detection, REDmod deployment, and `-modded` launching.
 - UMU prefix setup with `vcrun2022`, `d3dcompiler_47`, and optional `.NET 6`.
 - Four-color Night City, Arasaka, Mox, and Samurai TUI themes.
-- Save/runtime backups and stale mount/profile lock recovery.
+- Shared modded save sets, explicit local Steam save import/export, backups,
+  and stale mount/profile lock recovery.
 
 Nexus OAuth, `nxm://`, FOMOD installers, Steam Cloud synchronization, and
 non-Steam game stores are intentionally outside the first release.
+
+## Screenshots
+
+These captures use synthetic profiles, paths, build identifiers, mods, and save
+sets. They do not contain local usernames, real Steam paths, or save data.
+
+### Dashboard
+
+![Night City dashboard showing the active profile, loadout health, and isolated runtime status](docs/screenshots/dashboard.png)
+
+### Profiles and save management
+
+![Profiles page showing isolated runners, a shared modded save set, and Steam import and export controls](docs/screenshots/profiles.png)
+
+### Mod loadout and dependency health
+
+![Mods page showing enabled mods and a dependency-blocked mod](docs/screenshots/mods.png)
 
 ## Arch installation
 
@@ -92,10 +110,10 @@ launches do not guarantee Steam Overlay, achievements, playtime, or Steam Cloud.
 ## TUI mod inbox
 
 The Imports page scans `./mods/`, relative to the directory from which the
-application was started. In this source checkout that is
-`/home/samurai/dev/cp2077-mod-tui/mods/`. Each immediate child directory or
-supported archive (`.zip`, `.7z`, `.rar`, tar and compressed tar formats) is an
-import candidate. The inbox contents are ignored by Git.
+application was started. When launched from a source checkout, that is the
+repository's `mods/` directory. Each immediate child directory or supported
+archive (`.zip`, `.7z`, `.rar`, tar and compressed tar formats) is an import
+candidate. The inbox contents are ignored by Git.
 
 Importing snapshots the source into managed immutable storage and enables it
 in the selected profile. An item marked `IMPORTED` can safely remain in the
