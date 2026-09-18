@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, ensure};
 use chrono::{DateTime, Utc};
 use rusqlite::{Connection, OptionalExtension, params};
 
@@ -235,6 +235,32 @@ impl Database {
 
     pub fn mod_release(&self, id: &str) -> Result<Option<ModRelease>> {
         Ok(self.list_mods()?.into_iter().find(|item| item.id == id))
+    }
+
+    pub fn mod_by_archive_sha(&self, sha256: &str) -> Result<Option<ModRelease>> {
+        Ok(self
+            .list_mods()?
+            .into_iter()
+            .find(|item| item.archive_sha256 == sha256))
+    }
+
+    pub fn profiles_using_mod(&self, mod_id: &str) -> Result<Vec<String>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT DISTINCT p.name FROM loadout_entries e
+             JOIN profiles p ON p.id = e.profile_id
+             WHERE e.mod_id=?1
+             ORDER BY lower(p.name)",
+        )?;
+        let rows = stmt.query_map([mod_id], |row| row.get::<_, String>(0))?;
+        Ok(rows.collect::<rusqlite::Result<Vec<_>>>()?)
+    }
+
+    pub fn delete_mod(&self, id: &str) -> Result<()> {
+        let changed = self
+            .conn
+            .execute("DELETE FROM mods WHERE id=?1", params![id])?;
+        ensure!(changed == 1, "mod {id} was not in the library");
+        Ok(())
     }
 
     pub fn files_for_mod(&self, mod_id: &str) -> Result<Vec<FileOwner>> {

@@ -35,17 +35,17 @@ non-Steam game stores are intentionally outside the first release.
 These captures use synthetic profiles, paths, build identifiers, mods, and save
 sets. They do not contain local usernames, real Steam paths, or save data.
 
-### Dashboard
+### Loadout
 
-![Night City dashboard showing the active profile, loadout health, and isolated runtime status](docs/screenshots/dashboard.png)
+![Night City loadout showing the active profile, loadout health, and isolated runtime status](docs/screenshots/dashboard.png)
 
-### Profiles and save management
+### Runtime and save management
 
-![Profiles page showing isolated runners, a shared modded save set, and Steam import and export controls](docs/screenshots/profiles.png)
+![Runtime mode showing isolated runners, a shared modded save set, and Steam import and export controls](docs/screenshots/profiles.png)
 
-### Mod loadout and dependency health
+### Mod list and dependency health
 
-![Mods page showing enabled mods and a dependency-blocked mod](docs/screenshots/mods.png)
+![Loadout mods pane showing enabled mods and a dependency-blocked mod](docs/screenshots/mods.png)
 
 ## Arch installation
 
@@ -72,9 +72,10 @@ release template for an AUR package once the project is published.
 2. If using official REDmods, install the free Steam DLC 2060310. Steam needs
    the game library mounted read-write for DLC installation and game updates.
 3. Put manually downloaded archives or extracted mod directories in `./mods/`,
-   open the TUI's Imports page, and press `Enter` to import the selected item.
-   Press `a` on that page to import a directory or archive from anywhere else.
-   Frameworks and imports are also available from the CLI:
+   open Add (`2`) and press `Tab` to reach Inbox, then `Enter` to import.
+   Press `a` to import a directory or archive from anywhere else. Core
+   frameworks sit in the same mode; press `f` on a Core row to fetch one.
+   CLI equivalents:
 
    ```bash
    cp2077-mod-tui framework fetch red4ext --profile Default
@@ -82,7 +83,7 @@ release template for an AUR package once the project is published.
    cp2077-mod-tui import ~/Downloads/my-mod.7z --version 1.0 --profile Default
    ```
 
-4. Review the loadout on Mods and exact-path collisions on Clash. The CLI
+4. Review the loadout on `1` (mods on the left, file conflicts on the right). The CLI
    equivalents remain available for scripting:
 
    ```bash
@@ -91,14 +92,14 @@ release template for an AUR package once the project is published.
    cp2077-mod-tui launch Default --dry-run
    ```
 
-5. Press `p` on Dashboard or Profiles to prepare the isolated runtime. Prepare
+5. Press `p` on Loadout or Runtime to prepare the isolated runtime. Prepare
    it again when its Windows prerequisites change. The CLI equivalent is:
 
    ```bash
    cp2077-mod-tui prepare Default
    ```
 
-6. Launch from the TUI with `Shift-L`, then `Enter`, or use:
+6. Launch from the TUI with `Shift-L`, or use:
 
    ```bash
    cp2077-mod-tui launch Default
@@ -109,7 +110,7 @@ launches do not guarantee Steam Overlay, achievements, playtime, or Steam Cloud.
 
 ## TUI mod inbox
 
-The Imports page scans `./mods/`, relative to the directory from which the
+The Add mode's Inbox pane scans `./mods/`, relative to the directory from which the
 application was started. When launched from a source checkout, that is the
 repository's `mods/` directory. Each immediate child directory or supported
 archive (`.zip`, `.7z`, `.rar`, tar and compressed tar formats) is an import
@@ -122,28 +123,31 @@ Editing an already imported source does not update its managed snapshot yet.
 
 ## TUI keys
 
-- `1`–`9`: dashboard, profiles, mods, imports, core frameworks, conflicts,
-  backups, health, themes
-- `j`/`k` or arrows: move
-- `Enter` on Profiles: select a profile
-- `n` on Profiles: create and select a new isolated profile
-- `s` on Profiles: share the active profile's modded saves with the highlighted profile
-- `u` on Profiles: detach the highlighted profile to a private copy of the shared saves
-- `i` on Profiles: import local vanilla Steam saves into the highlighted profile
-- `e` on Profiles: export the highlighted profile's saves to the local Steam prefix
-- `p` on Dashboard or Profiles: prepare the selected profile
-- `Space`: toggle a mod in the selected profile
-- `+`/`-`: raise or lower the selected mod's conflict priority
-- `x` or `v` on Dashboard or Mods: disable all profile mods after confirmation
-- `Enter`/`i` on Imports: import the selected inbox item and enable it
-- `a` on Imports: enter a mod directory or archive path from anywhere
-- `r` on Imports: rescan `./mods/`
-- `f`: fetch and enable the selected curated core framework
-- `b` on Backups: back up isolated saves and runtime state
-- `Enter` on Backups: restore the selected backup after confirmation
-- `t`: apply the selected theme
-- `Shift-L`, then `Enter`: launch
-- `?`: key help
+- `1` Loadout, `2` Add, `3` Runtime
+- `h`/`l` or Left/Right/Tab: switch inner panes
+- `j`/`k` or Up/Down: move in the focused pane
+- `Enter` on Runtime profiles: select a profile
+- `n` on Runtime: create and select a new isolated profile
+- `s` on Runtime: share the active profile's modded saves with the highlighted profile
+- `u` on Runtime: detach the highlighted profile to a private copy of the shared saves
+- `i` on Runtime: import local vanilla Steam saves into the highlighted profile
+- `e` on Runtime: export the highlighted profile's saves to the local Steam prefix
+- `p` on Loadout or Runtime: prepare the selected profile
+- `Space` on Loadout: toggle a mod in the selected profile. Enabling a mod with disabled dependencies or an already-on duplicate asks first (`y` fix, `n` enable only, Esc cancel)
+- `+`/`-` on Loadout: raise or lower the selected mod's conflict priority
+- `c` on Loadout: open or close the full-width file conflicts view
+- `C` on Loadout: show all collisions vs the highlighted mod
+- `x` or `v` on Loadout: disable all profile mods after confirmation
+- `Enter`/`i` on Add Inbox: import the selected inbox item and enable it
+- `a` on Add: enter a mod directory or archive path from anywhere
+- `r` on Add Inbox: rescan `./mods/`
+- `f` on Add Core: fetch and enable the selected curated core framework; if it is already installed, `y` enables the existing copy and `r` replaces it
+- `d` on Loadout or Add Core: delete the selected release from the library after confirmation
+- `b` on Runtime: back up isolated saves and runtime state
+- `Enter` on Runtime backups: restore the selected backup after confirmation
+- `t`: cycle the four-color theme presets
+- `Shift-L`: launch
+- `?`: key help overlay
 - `q` or `Esc`: quit
 
 ## State and recovery
@@ -237,7 +241,8 @@ primary = [238, 28, 76]
 accent = [247, 239, 0]
 ```
 
-Edit the file while the TUI is closed, or select one of the four presets.
+Edit the file while the TUI is closed, or press `t` in the TUI to cycle the
+four presets. The active theme is shown in the sidebar footer.
 
 ## Development
 

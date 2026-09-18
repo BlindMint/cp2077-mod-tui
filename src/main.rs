@@ -199,6 +199,7 @@ fn run() -> Result<()> {
                 &paths,
                 &args.path,
                 ImportOptions {
+                    id: None,
                     name: args.name,
                     version: args.version,
                 },
@@ -335,15 +336,11 @@ fn run() -> Result<()> {
         },
         Some(Command::Framework { command }) => match command {
             FrameworkCommand::List => {
-                let installed = db
-                    .list_mods()?
-                    .into_iter()
-                    .map(|item| item.id)
-                    .collect::<Vec<_>>();
+                let mods = db.list_mods()?;
                 for framework in catalog::FRAMEWORKS {
                     println!(
                         "{:9} {:22} {}",
-                        if installed.contains(&framework.id.to_string()) {
+                        if catalog::is_installed(&mods, framework) {
                             "installed"
                         } else {
                             "available"
@@ -354,16 +351,31 @@ fn run() -> Result<()> {
                 }
             }
             FrameworkCommand::Fetch { framework, profile } => {
-                let downloaded = catalog::fetch(&paths, &framework)?;
                 let descriptor = catalog::FRAMEWORKS
                     .iter()
                     .find(|item| item.id == framework)
                     .context("unknown framework")?;
+                let mods = db.list_mods()?;
+                if let Some(existing) = catalog::matching_releases(&mods, descriptor)
+                    .into_iter()
+                    .next()
+                {
+                    println!(
+                        "Already installed {} {} ({})",
+                        existing.name, existing.version, existing.id
+                    );
+                    if let Some(profile) = profile {
+                        set_enabled(&db, &profile, &existing.id, true)?;
+                    }
+                    return Ok(());
+                }
+                let downloaded = catalog::fetch(&paths, &framework)?;
                 let release = import::import(
                     &mut db,
                     &paths,
                     &downloaded.path,
                     ImportOptions {
+                        id: Some(descriptor.id.into()),
                         name: Some(descriptor.name.into()),
                         version: downloaded.version,
                     },

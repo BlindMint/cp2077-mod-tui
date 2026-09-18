@@ -23,6 +23,7 @@ const GAME_ROOTS: &[&str] = &["archive", "bin", "engine", "r6", "red4ext", "mods
 
 #[derive(Debug, Clone)]
 pub struct ImportOptions {
+    pub id: Option<String>,
     pub name: Option<String>,
     pub version: String,
 }
@@ -30,6 +31,7 @@ pub struct ImportOptions {
 impl Default for ImportOptions {
     fn default() -> Self {
         Self {
+            id: None,
             name: None,
             version: "unknown".into(),
         }
@@ -58,12 +60,18 @@ pub fn import(
         let snapshot = stage.path().join("source.tar.zst");
         create_directory_snapshot(source, &snapshot)?;
         let digest = hash_file(&snapshot)?;
+        if let Some(existing) = db.mod_by_archive_sha(&digest)? {
+            return Ok(existing);
+        }
         retain_archive(paths, &snapshot, &digest, "tar.zst")?;
         copy_tree(source, &raw)?;
         digest
     } else {
         validate_archive_listing(source)?;
         let digest = hash_file(source)?;
+        if let Some(existing) = db.mod_by_archive_sha(&digest)? {
+            return Ok(existing);
+        }
         retain_archive(
             paths,
             source,
@@ -93,7 +101,12 @@ pub fn import(
         "archive contains no installable files"
     );
 
-    let detected_framework = detect_framework(&relative_paths);
+    let detected_framework = detect_framework(&relative_paths).or_else(|| {
+        options
+            .id
+            .as_deref()
+            .and_then(|id| FRAMEWORKS.iter().find(|framework| framework.id == id))
+    });
     let name = options
         .name
         .or_else(|| detected_framework.map(|framework| framework.name.to_string()))
@@ -103,8 +116,10 @@ pub fn import(
                 .map(|value| value.to_string_lossy().into_owned())
         })
         .unwrap_or_else(|| "Imported mod".into());
-    let mod_id = detected_framework
-        .map(|framework| framework.id.to_string())
+    let mod_id = options
+        .id
+        .clone()
+        .or_else(|| detected_framework.map(|framework| framework.id.to_string()))
         .unwrap_or_else(|| Uuid::new_v4().to_string());
     if db.mod_release(&mod_id)?.is_some() {
         bail!(
@@ -156,6 +171,23 @@ pub fn import(
         }
     }
     Ok(release)
+}
+
+pub fn remove_release(db: &Database, release: &ModRelease) -> Result<()> {
+    db.delete_mod(&release.id)?;
+    if release.layer_path.exists() {
+        fs::remove_dir_all(&release.layer_path)
+            .with_context(|| format!("remove extracted layer {}", release.layer_path.display()))?;
+    }
+    if let Some(parent) = release.layer_path.parent()
+        && parent.exists()
+        && fs::read_dir(parent)
+            .map(|mut entries| entries.next().is_none())
+            .unwrap_or(false)
+    {
+        let _ = fs::remove_dir(parent);
+    }
+    Ok(())
 }
 
 fn validate_archive_listing(source: &Path) -> Result<()> {
@@ -517,6 +549,7 @@ mod tests {
             &paths,
             &source,
             ImportOptions {
+                id: None,
                 name: Some("Example".into()),
                 version: "1.0".into(),
             },
@@ -532,5 +565,29 @@ mod tests {
                 .any(|dependency| dependency.requires_id == "redscript")
         );
         assert_eq!(fs::read_dir(paths.archives_dir()).unwrap().count(), 1);
+    }
+
+    #[test]
+    fn core_fetch_keeps_stable_id_and_refuses_a_second_copy() {
+        let temp = tempfile::tempdir().unwrap();
+        let source = temp.path().join("redscript-zip");
+        fs::create_dir_all(source.join("engine/tools")).unwrap();
+        fs::write(source.join("engine/tools/scc.exe"), "placeholder").unwrap();
+        let paths = AppPaths {
+            config_dir: temp.path().join("config"),
+            data_dir: temp.path().join("data"),
+            cache_dir: temp.path().join("cache"),
+            runtime_dir: temp.path().join("runtime"),
+        };
+        let mut db = Database::in_memory().unwrap();
+        let options = ImportOptions {
+            id: Some("redscript".into()),
+            name: Some("redscript".into()),
+            version: "1.0".into(),
+        };
+        let first = import(&mut db, &paths, &source, options.clone()).unwrap();
+        assert_eq!(first.id, "redscript");
+        let _ = import(&mut db, &paths, &source, options);
+        assert_eq!(db.list_mods().unwrap().len(), 1);
     }
 }

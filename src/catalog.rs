@@ -3,7 +3,7 @@ use std::{collections::BTreeMap, fs, path::PathBuf, process::Command};
 use anyhow::{Context, Result, ensure};
 use serde::{Deserialize, Serialize};
 
-use crate::paths::AppPaths;
+use crate::{models::ModRelease, paths::AppPaths};
 
 #[derive(Debug, Clone, Serialize)]
 pub struct FrameworkDescriptor {
@@ -58,6 +58,21 @@ pub const FRAMEWORKS: &[FrameworkDescriptor] = &[
         signatures: &["red4ext/plugins/Codeware"],
     },
 ];
+
+pub fn matching_releases<'a>(
+    mods: &'a [ModRelease],
+    framework: &FrameworkDescriptor,
+) -> Vec<&'a ModRelease> {
+    mods.iter()
+        .filter(|release| {
+            release.id == framework.id || release.name.eq_ignore_ascii_case(framework.name)
+        })
+        .collect()
+}
+
+pub fn is_installed(mods: &[ModRelease], framework: &FrameworkDescriptor) -> bool {
+    !matching_releases(mods, framework).is_empty()
+}
 
 pub fn dependencies() -> BTreeMap<String, Vec<String>> {
     FRAMEWORKS
@@ -247,5 +262,25 @@ mod tests {
             result,
             vec!["archivexl", "cyber-engine-tweaks", "redscript"]
         );
+    }
+
+    #[test]
+    fn matches_frameworks_by_stable_id_or_name() {
+        let uuid_copy = ModRelease {
+            id: "not-redscript".into(),
+            name: "redscript".into(),
+            version: "1.0".into(),
+            kind: crate::models::ModKind::Framework,
+            archive_sha256: "abc".into(),
+            layer_path: PathBuf::from("/tmp/layer"),
+            source: "/tmp/src".into(),
+            installed_at: chrono::Utc::now(),
+        };
+        let framework = FRAMEWORKS
+            .iter()
+            .find(|item| item.id == "redscript")
+            .unwrap();
+        assert!(is_installed(std::slice::from_ref(&uuid_copy), framework));
+        assert_eq!(matching_releases(&[uuid_copy], framework).len(), 1);
     }
 }
