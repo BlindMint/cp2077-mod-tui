@@ -32,20 +32,17 @@ non-Steam game stores are intentionally outside the first release.
 
 ## Screenshots
 
-These captures use synthetic profiles, paths, build identifiers, mods, and save
-sets. They do not contain local usernames, real Steam paths, or save data.
-
 ### Loadout
 
-![Night City loadout showing the active profile, loadout health, and isolated runtime status](docs/screenshots/dashboard.png)
+![Loadout mode with health strip, full-width mods table, and selected-mod detail](docs/screenshots/loadout.png)
 
-### Runtime and save management
+### Add
 
-![Runtime mode showing isolated runners, a shared modded save set, and Steam import and export controls](docs/screenshots/profiles.png)
+![Add mode with curated Core frameworks above the local mod inbox](docs/screenshots/add.png)
 
-### Mod list and dependency health
+### Runtime
 
-![Loadout mods pane showing enabled mods and a dependency-blocked mod](docs/screenshots/mods.png)
+![Runtime mode with profile list, save detail, and backups](docs/screenshots/runtime.png)
 
 ## Arch installation
 
@@ -124,8 +121,9 @@ Editing an already imported source does not update its managed snapshot yet.
 ## TUI keys
 
 - `1` Loadout, `2` Add, `3` Runtime
-- `h`/`l` or Left/Right/Tab: switch inner panes
-- `j`/`k` or Up/Down: move in the focused pane
+- `h`/`l` or Left/Right/Tab: move along sidebar ↔ primary list ↔ extra pane
+- `j`/`k` or Up/Down: move in the focused pane; on the sidebar, switch modes
+- `Enter` from the sidebar: focus the mode's primary list
 - `Enter` on Runtime profiles: select a profile
 - `n` on Runtime: create and select a new isolated profile
 - `s` on Runtime: share the active profile's modded saves with the highlighted profile

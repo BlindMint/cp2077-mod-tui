@@ -70,6 +70,7 @@ impl Mode {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Pane {
+    Sidebar,
     Primary,
     Secondary,
 }
@@ -237,21 +238,29 @@ fn event_loop(
             KeyCode::Char('2') => switch_mode(app, paths, Mode::Add)?,
             KeyCode::Char('3') => switch_mode(app, paths, Mode::Runtime)?,
             KeyCode::Left | KeyCode::Char('h') | KeyCode::BackTab => {
-                app.pane = Pane::Primary;
+                app.pane = focus_left(app.pane);
             }
             KeyCode::Right | KeyCode::Char('l') | KeyCode::Tab => {
-                app.pane = Pane::Secondary;
+                app.pane = focus_right(app.pane);
             }
             KeyCode::Down | KeyCode::Char('j') => {
-                move_selection(app, 1);
-                if app.mode == Mode::Runtime && app.pane == Pane::Primary {
-                    reload_detail_backups(app, paths)?;
+                if app.pane == Pane::Sidebar {
+                    shift_mode(app, paths, 1)?;
+                } else {
+                    move_selection(app, 1);
+                    if app.mode == Mode::Runtime && app.pane == Pane::Primary {
+                        reload_detail_backups(app, paths)?;
+                    }
                 }
             }
             KeyCode::Up | KeyCode::Char('k') => {
-                move_selection(app, -1);
-                if app.mode == Mode::Runtime && app.pane == Pane::Primary {
-                    reload_detail_backups(app, paths)?;
+                if app.pane == Pane::Sidebar {
+                    shift_mode(app, paths, -1)?;
+                } else {
+                    move_selection(app, -1);
+                    if app.mode == Mode::Runtime && app.pane == Pane::Primary {
+                        reload_detail_backups(app, paths)?;
+                    }
                 }
             }
             KeyCode::Char(' ') if app.mode == Mode::Loadout && app.pane == Pane::Primary => {
@@ -312,6 +321,9 @@ fn event_loop(
             }
             KeyCode::Char('d') if app.mode == Mode::Add && app.pane == Pane::Primary => {
                 request_delete_selected_framework(app, db)?;
+            }
+            KeyCode::Enter if app.pane == Pane::Sidebar => {
+                app.pane = Pane::Primary;
             }
             KeyCode::Enter if app.mode == Mode::Add && app.pane == Pane::Secondary => {
                 import_selected_candidate(terminal, app, db, paths, games)?;
@@ -435,6 +447,20 @@ fn event_loop(
     }
 }
 
+fn focus_left(pane: Pane) -> Pane {
+    match pane {
+        Pane::Secondary => Pane::Primary,
+        Pane::Primary | Pane::Sidebar => Pane::Sidebar,
+    }
+}
+
+fn focus_right(pane: Pane) -> Pane {
+    match pane {
+        Pane::Sidebar => Pane::Primary,
+        Pane::Primary | Pane::Secondary => Pane::Secondary,
+    }
+}
+
 fn switch_mode(app: &mut App, paths: &AppPaths, mode: Mode) -> Result<()> {
     app.mode = mode;
     app.pane = Pane::Primary;
@@ -445,7 +471,24 @@ fn switch_mode(app: &mut App, paths: &AppPaths, mode: Mode) -> Result<()> {
     Ok(())
 }
 
+fn shift_mode(app: &mut App, paths: &AppPaths, delta: i8) -> Result<()> {
+    let index = Mode::ALL
+        .iter()
+        .position(|mode| *mode == app.mode)
+        .unwrap_or(0) as i8;
+    let next = (index + delta).rem_euclid(Mode::ALL.len() as i8) as usize;
+    app.mode = Mode::ALL[next];
+    if app.mode == Mode::Runtime {
+        app.profile_cursor = app.profile_index;
+        reload_detail_backups(app, paths)?;
+    }
+    Ok(())
+}
+
 fn move_selection(app: &mut App, delta: i32) {
+    if app.pane == Pane::Sidebar {
+        return;
+    }
     let count = pane_len(app);
     if count == 0 {
         return;
@@ -463,6 +506,7 @@ fn move_selection(app: &mut App, delta: i32) {
 
 fn current_index_mut(app: &mut App) -> &mut usize {
     match (app.mode, app.pane) {
+        (_, Pane::Sidebar) => &mut app.loadout_index,
         (Mode::Loadout, Pane::Primary) => &mut app.loadout_index,
         (Mode::Loadout, Pane::Secondary) => &mut app.conflict_index,
         (Mode::Add, Pane::Primary) => &mut app.core_index,
@@ -474,6 +518,7 @@ fn current_index_mut(app: &mut App) -> &mut usize {
 
 fn pane_len(app: &App) -> usize {
     match (app.mode, app.pane) {
+        (_, Pane::Sidebar) => 0,
         (Mode::Loadout, Pane::Primary) => app.mods.len(),
         (Mode::Loadout, Pane::Secondary) => visible_conflicts(app).len(),
         (Mode::Add, Pane::Primary) => catalog::FRAMEWORKS.len(),
@@ -1580,12 +1625,20 @@ fn warn_count(app: &App) -> usize {
 }
 
 fn page_badge(mode: Mode, app: &App) -> Option<String> {
-    let count = match mode {
-        Mode::Loadout => blocked_count(app) + app.conflicts.len(),
-        Mode::Add => 0,
-        Mode::Runtime => usize::from(!selected_profile_is_prepared(app)),
-    };
-    (count > 0).then(|| count.to_string())
+    match mode {
+        Mode::Loadout => {
+            let count = blocked_count(app) + app.conflicts.len();
+            (count > 0).then(|| count.to_string())
+        }
+        Mode::Add => None,
+        Mode::Runtime => {
+            if app.profiles.is_empty() || selected_profile_is_prepared(app) {
+                None
+            } else {
+                Some("prep".into())
+            }
+        }
+    }
 }
 
 fn next_action(app: &App, games: &[GameInstall]) -> String {
@@ -1628,21 +1681,26 @@ fn render(frame: &mut Frame<'_>, app: &App, games: &[GameInstall]) {
     let theme = &app.theme;
     let vertical = Layout::default()
         .direction(Direction::Vertical)
-        .constraints([Constraint::Min(8), Constraint::Length(3)])
+        .constraints([
+            Constraint::Length(1),
+            Constraint::Min(8),
+            Constraint::Length(3),
+        ])
         .split(frame.area());
-    let shell = Block::default()
-        .title(" CP2077 // MOD CONTROL ")
-        .borders(Borders::ALL)
-        .border_style(Style::default().fg(theme.primary.into()));
-    let body = shell.inner(vertical[0]);
-    frame.render_widget(shell, vertical[0]);
+    frame.render_widget(
+        Block::default()
+            .title(" CP2077 // MOD CONTROL ")
+            .borders(Borders::TOP)
+            .border_style(Style::default().fg(theme.primary.into())),
+        vertical[0],
+    );
     let columns = Layout::default()
         .direction(Direction::Horizontal)
         .constraints([
-            Constraint::Length(sidebar_width(body.width)),
+            Constraint::Length(sidebar_width(vertical[1].width)),
             Constraint::Min(20),
         ])
-        .split(body);
+        .split(vertical[1]);
 
     render_sidebar(frame, columns[0], app);
     match app.mode {
@@ -1663,7 +1721,7 @@ fn render(frame: &mut Frame<'_>, app: &App, games: &[GameInstall]) {
                     .title(format!(" STATUS // {profile} ")),
             )
             .style(Style::default().fg(theme.accent.into())),
-        vertical[1],
+        vertical[2],
     );
     if let Some(input) = &app.import_path_input {
         render_import_path_prompt(frame, app, input);
@@ -1677,9 +1735,14 @@ fn render(frame: &mut Frame<'_>, app: &App, games: &[GameInstall]) {
 }
 
 fn render_sidebar(frame: &mut Frame<'_>, area: Rect, app: &App) {
+    let border = if app.pane == Pane::Sidebar {
+        app.theme.accent
+    } else {
+        app.theme.primary
+    };
     let block = Block::default()
         .borders(Borders::ALL)
-        .border_style(Style::default().fg(app.theme.primary.into()));
+        .border_style(Style::default().fg(border.into()));
     let inner = block.inner(area);
     frame.render_widget(block, area);
     if inner.width == 0 || inner.height == 0 {
@@ -1689,36 +1752,25 @@ fn render_sidebar(frame: &mut Frame<'_>, area: Rect, app: &App) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Length(4),
+            Constraint::Length(2),
             Constraint::Min(7),
             Constraint::Length(3),
         ])
         .split(inner);
 
     let profile = app.profiles.get(app.profile_index);
-    let prep = if selected_profile_is_prepared(app) {
-        "prepared"
-    } else if profile.is_some() {
-        "needs prep"
-    } else {
-        "—"
-    };
     let header = vec![
         Line::from(Span::styled(
-            "PROFILE",
-            Style::default()
-                .fg(app.theme.primary.into())
-                .add_modifier(Modifier::BOLD),
-        )),
-        Line::from(Span::styled(
-            profile
-                .map(|profile| profile.name.as_str())
-                .unwrap_or("none"),
+            format!(
+                "● {}",
+                profile
+                    .map(|profile| profile.name.as_str())
+                    .unwrap_or("none")
+            ),
             Style::default()
                 .fg(app.theme.accent.into())
                 .add_modifier(Modifier::BOLD),
         )),
-        Line::from(prep),
         Line::from(""),
     ];
     frame.render_widget(Paragraph::new(header), chunks[0]);
@@ -1754,7 +1806,11 @@ fn render_sidebar(frame: &mut Frame<'_>, area: Rect, app: &App) {
 
 fn sidebar_nav_line(mode: Mode, app: &App, compact: bool, width: u16) -> Line<'static> {
     let selected = app.mode == mode;
-    let marker = if selected { "▶" } else { " " };
+    let marker = if selected && app.pane == Pane::Sidebar {
+        "▶"
+    } else {
+        " "
+    };
     let name = if compact {
         mode.short_title()
     } else {
@@ -1793,7 +1849,7 @@ fn render_help(frame: &mut Frame<'_>, app: &App) {
     let area = centered(outer, 78, 20);
     let lines = vec![
         Line::from("1 Loadout   2 Add   3 Runtime   q quit"),
-        Line::from("h/l or arrows: switch panes   j/k move in the focused pane"),
+        Line::from("h/l or arrows: sidebar ↔ list ↔ extra pane   j/k move in focus"),
         Line::from("p prepare   Shift-L launch   x/v vanilla loadout"),
         Line::from("Loadout: Space toggle (y fixes deps/dups)   +/- priority   d delete"),
         Line::from("c file conflicts   C all vs selected mod"),
@@ -2761,6 +2817,7 @@ mod tests {
         let app = test_app();
         assert_eq!(page_badge(Mode::Loadout, &app).as_deref(), Some("1"));
         assert_eq!(page_badge(Mode::Add, &app), None);
+        assert_eq!(page_badge(Mode::Runtime, &app), None);
     }
 
     #[test]
@@ -2775,7 +2832,8 @@ mod tests {
         assert!(text.contains("Night City"));
         assert!(text.contains("CP2077"));
         assert!(text.contains("// MOD CONTROL"));
-        assert!(text.contains("PROFILE"));
+        assert!(text.contains("● none"));
+        assert!(!text.contains("PROFILE"));
         assert!(!text.contains("1DASH"));
         assert!(!text.contains("THEME"));
         assert!(!text.contains("6CLASH"));
@@ -2878,16 +2936,13 @@ mod tests {
     }
 
     #[test]
-    fn pane_focus_stays_inside_a_mode() {
-        let mut app = test_app();
-        assert_eq!(app.mode, Mode::Loadout);
-        assert_eq!(app.pane, Pane::Primary);
-        app.pane = Pane::Secondary;
-        assert_eq!(app.pane, Pane::Secondary);
-        app.mode = Mode::Add;
-        app.pane = Pane::Primary;
-        assert_eq!(app.mode, Mode::Add);
-        assert_eq!(app.pane, Pane::Primary);
+    fn pane_chain_is_sidebar_primary_secondary() {
+        assert_eq!(focus_left(Pane::Secondary), Pane::Primary);
+        assert_eq!(focus_left(Pane::Primary), Pane::Sidebar);
+        assert_eq!(focus_left(Pane::Sidebar), Pane::Sidebar);
+        assert_eq!(focus_right(Pane::Sidebar), Pane::Primary);
+        assert_eq!(focus_right(Pane::Primary), Pane::Secondary);
+        assert_eq!(focus_right(Pane::Secondary), Pane::Secondary);
     }
 
     #[test]
